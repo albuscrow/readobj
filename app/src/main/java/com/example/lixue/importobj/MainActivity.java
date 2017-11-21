@@ -89,18 +89,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void read() {
+        long start = System.currentTimeMillis();
         RendererData data = (RendererData) readObj("/sdcard/test.obj");
+        System.out.println("MainActivity.read ac!!" + (System.currentTimeMillis() - start));
         FloatBuffer fb = data.points.order(ByteOrder.nativeOrder()).asFloatBuffer();
-        String s = "point: ";
-        for (int i = 0; i < fb.capacity(); ++i) {
-            s += fb.get(i) + " ";
-        }
-        s += "indices: ";
+        System.out.println("MainActivity.read ac!!" + fb.capacity());
         IntBuffer ib = data.indices.order(ByteOrder.nativeOrder()).asIntBuffer();
-        for (int i = 0; i < ib.capacity(); ++i) {
-            s += ib.get(i);
-        }
-        System.out.println("MainActivity.read" + s);
+        System.out.println("MainActivity.read ac!!" + ib.capacity());
     }
 
     public native Object readObj(String s);
