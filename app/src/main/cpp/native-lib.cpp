@@ -32,7 +32,7 @@ struct Face {
     }
 };
 
-int parseFace(map<Face, int> &aux, vector<float> *points,
+short parseFace(map<Face, short> &aux, vector<float> *points,
               vector<float> &vs, vector<float> &vts, vector<float> &vns,
               FILE *f) {
     Face face;
@@ -54,7 +54,7 @@ int parseFace(map<Face, int> &aux, vector<float> *points,
         points->push_back(vns[face.vn * 3]);
         points->push_back(vns[face.vn * 3 + 1]);
         points->push_back(vns[face.vn * 3 + 2]);
-        int res = (int) (points->size() / 8 - 1);
+        short res = (short) (points->size() / 8 - 1);
         aux.insert({face, res});
         return res;
     }
@@ -64,7 +64,7 @@ int parseFace(map<Face, int> &aux, vector<float> *points,
 extern "C"
 JNIEXPORT jobject
 JNICALL
-Java_com_example_lixue_importobj_MainActivity_readObj(
+Java_com_example_lixue_importobj_ObjParser_readObj(
         JNIEnv *env,
         jobject /* this */, jstring fileName) {
 
@@ -81,9 +81,9 @@ Java_com_example_lixue_importobj_MainActivity_readObj(
     char ignore[1024];
     float if1, if2, if3;
     vector<jfloat> *points = new vector<jfloat>;
-    vector<jint> *faces = new vector<jint>;
+    vector<jshort> *faces = new vector<jshort>;
     points->reserve(2014);
-    map<Face, int> aux;
+    map<Face, short> aux;
     while (fscanf(f, "%s", type) != EOF) {
         if (strcmp("v", type) == 0) {
             fscanf(f, "%f%f%f", &if1, &if2, &if3);

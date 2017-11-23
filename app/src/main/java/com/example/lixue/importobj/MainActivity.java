@@ -20,10 +20,12 @@ public class MainActivity extends AppCompatActivity {
         System.loadLibrary("native-lib");
     }
 
+    private GLView mGLView;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+//        setContentView(R.layout.activity_main);
 
         // Example of a call to a native method
 //        TextView tv = findViewById(R.id.sample_text);
@@ -57,7 +59,7 @@ public class MainActivity extends AppCompatActivity {
                 // result of the request.
             }
         } else {
-            read();
+            display();
         }
 
     }
@@ -73,7 +75,7 @@ public class MainActivity extends AppCompatActivity {
 
                     // permission was granted, yay! Do the
                     // contacts-related task you need to do.
-                    read();
+                    display();
 
                 } else {
                     finish();
@@ -88,15 +90,10 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void read() {
-        long start = System.currentTimeMillis();
-        RendererData data = (RendererData) readObj("/sdcard/test.obj");
-        System.out.println("MainActivity.read ac!!" + (System.currentTimeMillis() - start));
-        FloatBuffer fb = data.points.order(ByteOrder.nativeOrder()).asFloatBuffer();
-        System.out.println("MainActivity.read ac!!" + fb.capacity());
-        IntBuffer ib = data.indices.order(ByteOrder.nativeOrder()).asIntBuffer();
-        System.out.println("MainActivity.read ac!!" + ib.capacity());
+    private void display() {
+
+        mGLView = new GLView(this);
+        setContentView(mGLView);
     }
 
-    public native Object readObj(String s);
 }
