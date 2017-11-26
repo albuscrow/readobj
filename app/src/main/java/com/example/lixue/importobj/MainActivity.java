@@ -2,11 +2,19 @@ package com.example.lixue.importobj;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
+import android.content.res.AssetManager;
 import android.os.Bundle;
+import android.os.Environment;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
@@ -91,9 +99,47 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void display() {
-
-        mGLView = new GLView(this);
+        String outFile = copyAssets("test.obj", Environment.getExternalStorageDirectory().getAbsolutePath());
+        mGLView = new GLView(this, outFile);
         setContentView(mGLView);
     }
 
+    private String copyAssets(String fileName, String dst) {
+        AssetManager assetManager = getAssets();
+        InputStream in = null;
+        OutputStream out = null;
+        try {
+            in = assetManager.open(fileName);
+            File outFile = new File(dst, fileName);
+            out = new FileOutputStream(outFile);
+            copyFile(in, out);
+            return dst + "/" + fileName;
+        } catch (IOException e) {
+            Log.e("tag", "Failed to copy asset file: " + fileName, e);
+            return null;
+        } finally {
+            if (in != null) {
+                try {
+                    in.close();
+                } catch (IOException e) {
+                    // NOOP
+                }
+            }
+            if (out != null) {
+                try {
+                    out.close();
+                } catch (IOException e) {
+                    // NOOP
+                }
+            }
+        }
+    }
+
+    private void copyFile(InputStream in, OutputStream out) throws IOException {
+        byte[] buffer = new byte[1024];
+        int read;
+        while ((read = in.read(buffer)) != -1) {
+            out.write(buffer, 0, read);
+        }
+    }
 }

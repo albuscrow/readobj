@@ -7,6 +7,8 @@
 #include <map>
 #include <vector>
 #include <iostream>
+#include <android/asset_manager.h>
+#include <android/asset_manager_jni.h>
 
 using namespace std;
 
@@ -32,9 +34,9 @@ struct Face {
     }
 };
 
-short parseFace(map<Face, short> &aux, vector<float> *points,
-              vector<float> &vs, vector<float> &vts, vector<float> &vns,
-              FILE *f) {
+unsigned int parseFace(map<Face, unsigned int> &aux, vector<float> *points,
+                vector<float> &vs, vector<float> &vts, vector<float> &vns,
+                FILE *f) {
     Face face;
     fscanf(f, "%d/%d/%d", &face.v, &face.vt, &face.vn);
     face.v -= 1;
@@ -54,7 +56,7 @@ short parseFace(map<Face, short> &aux, vector<float> *points,
         points->push_back(vns[face.vn * 3]);
         points->push_back(vns[face.vn * 3 + 1]);
         points->push_back(vns[face.vn * 3 + 2]);
-        short res = (short) (points->size() / 8 - 1);
+        unsigned int res = (unsigned int) (points->size() / 8 - 1);
         aux.insert({face, res});
         return res;
     }
@@ -62,15 +64,18 @@ short parseFace(map<Face, short> &aux, vector<float> *points,
 }
 
 extern "C"
-JNIEXPORT jobject
+JNIEXPORT void
 JNICALL
 Java_com_example_lixue_importobj_ObjParser_readObj(
         JNIEnv *env,
-        jobject /* this */, jstring fileName) {
+        jobject self, jstring fileName) {
 
     const char *fileNameC = env->GetStringUTFChars(fileName, nullptr);
 
+    syslog(LOG_INFO, "obj file name is %s", fileNameC);
+
     FILE *f = fopen(fileNameC, "r");
+
     char type[32];
     vector<float> vs;
     vs.reserve(1024);
@@ -81,9 +86,9 @@ Java_com_example_lixue_importobj_ObjParser_readObj(
     char ignore[1024];
     float if1, if2, if3;
     vector<jfloat> *points = new vector<jfloat>;
-    vector<jshort> *faces = new vector<jshort>;
-    points->reserve(2014);
-    map<Face, short> aux;
+    vector<jint> *faces = new vector<jint>;
+    points->reserve(2048);
+    map<Face, unsigned int> aux;
     while (fscanf(f, "%s", type) != EOF) {
         if (strcmp("v", type) == 0) {
             fscanf(f, "%f%f%f", &if1, &if2, &if3);
@@ -93,7 +98,7 @@ Java_com_example_lixue_importobj_ObjParser_readObj(
         } else if (strcmp("vt", type) == 0) {
             fscanf(f, "%f%f", &if1, &if2);
             vts.push_back(if1);
-            vts.push_back(if2);
+            vts.push_back(1 - if2);
         } else if (strcmp("vn", type) == 0) {
             fscanf(f, "%f%f%f", &if1, &if2, &if3);
             vns.push_back(if1);
@@ -106,28 +111,20 @@ Java_com_example_lixue_importobj_ObjParser_readObj(
         } else {
             fgets(ignore, sizeof(ignore), f);
         }
-
     }
-
     env->ReleaseStringUTFChars(fileName, fileNameC);
 
 
-//    public class RendererData {
-//        IntBuffer indices;
-//        FloatBuffer points;
-//    }
-    jclass resClass = env->FindClass("com/example/lixue/importobj/RendererData");
-    jmethodID initId = env->GetMethodID(resClass, "<init>", "()V");
-    jobject res = env->NewObject(resClass, initId);
+    jclass resClass = env->GetObjectClass(self);
 
     jfieldID pointsId = env->GetFieldID(resClass, "points", "Ljava/nio/ByteBuffer;");
-    jobject pointBuffer = env->NewDirectByteBuffer(&((*points)[0]), points->size() * sizeof(jfloat));
-    env->SetObjectField(res, pointsId, pointBuffer);
+    jobject pointBuffer = env->NewDirectByteBuffer(&((*points)[0]),
+                                                   points->size() * sizeof(jfloat));
+    env->SetObjectField(self, pointsId, pointBuffer);
 
     jfieldID indicesId = env->GetFieldID(resClass, "indices", "Ljava/nio/ByteBuffer;");
-    jobject indicesBuffer = env->NewDirectByteBuffer(&((*faces)[0]), faces->size() * sizeof(jint));
-    env->SetObjectField(res, indicesId, indicesBuffer);
+    jobject indicesBuffer = env->NewDirectByteBuffer(&((*faces)[0]),
+                                                     faces->size() * sizeof(jint));
+    env->SetObjectField(self, indicesId, indicesBuffer);
 
-    return res;
 }
-
