@@ -32,11 +32,33 @@ struct Face {
             return v < face.v;
         }
     }
+
+    bool operator==(const Face &other) const {
+        return (v == other.v
+                && vn == other.vn
+                && vt == other.vt);
+    }
+
 };
 
-unsigned int parseFace(map<Face, unsigned int> &aux, vector<float> *points,
-                vector<float> &vs, vector<float> &vts, vector<float> &vns,
-                FILE *f) {
+struct hasher {
+    std::size_t operator()(const Face &k) const {
+        using std::size_t;
+        using std::hash;
+
+        // Compute individual hash values for first,
+        // second and third and combine them using XOR
+        // and bit shifting:
+
+        return ((hash<int>()(k.vt)
+                 ^ (hash<int>()(k.vn) << 1)) >> 1)
+               ^ (hash<int>()(k.vt) << 1);
+    }
+};
+
+unsigned int parseFace(unordered_map<Face, unsigned int, hasher> &aux, vector<float> *points,
+                       const vector<float> &vs, const vector<float> &vts, const vector<float> &vns,
+                       FILE *f) {
     Face face;
     fscanf(f, "%d/%d/%d", &face.v, &face.vt, &face.vn);
     face.v -= 1;
@@ -46,6 +68,7 @@ unsigned int parseFace(map<Face, unsigned int> &aux, vector<float> *points,
     if (iterator != aux.end()) {
         return iterator->second;
     } else {
+        unsigned int res = (unsigned int) (points->size() / 8);
         points->push_back(vs[face.v * 3]);
         points->push_back(vs[face.v * 3 + 1]);
         points->push_back(vs[face.v * 3 + 2]);
@@ -56,11 +79,9 @@ unsigned int parseFace(map<Face, unsigned int> &aux, vector<float> *points,
         points->push_back(vns[face.vn * 3]);
         points->push_back(vns[face.vn * 3 + 1]);
         points->push_back(vns[face.vn * 3 + 2]);
-        unsigned int res = (unsigned int) (points->size() / 8 - 1);
         aux.insert({face, res});
         return res;
     }
-
 }
 
 extern "C"
@@ -76,19 +97,21 @@ Java_com_example_lixue_importobj_ObjParser_readObj(
 
     FILE *f = fopen(fileNameC, "r");
 
+    size_t estimateVerticesNumber = 35000;
+
     char type[32];
     vector<float> vs;
-    vs.reserve(1024);
+    vs.reserve(estimateVerticesNumber * 3);
     vector<float> vts;
-    vts.reserve(1024);
+    vts.reserve(estimateVerticesNumber * 2);
     vector<float> vns;
-    vns.reserve(1024);
-    char ignore[1024];
+    vns.reserve(estimateVerticesNumber * 3);
+    char ignore[512];
     float if1, if2, if3;
     vector<jfloat> *points = new vector<jfloat>;
     vector<jint> *faces = new vector<jint>;
     points->reserve(2048);
-    map<Face, unsigned int> aux;
+    unordered_map<Face, unsigned int, hasher> aux;
     while (fscanf(f, "%s", type) != EOF) {
         if (strcmp("v", type) == 0) {
             fscanf(f, "%f%f%f", &if1, &if2, &if3);
