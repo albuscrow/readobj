@@ -87,7 +87,7 @@ unsigned int parseFace(unordered_map<Face, unsigned int, hasher> &aux, vector<fl
 extern "C"
 JNIEXPORT void
 JNICALL
-Java_com_example_lixue_importobj_ObjParser_readObj(
+Java_com_example_lixue_importobj_ObjParser_loadObj(
         JNIEnv *env,
         jobject self, jstring fileName) {
 

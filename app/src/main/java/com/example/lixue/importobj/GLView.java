@@ -4,17 +4,10 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.opengl.GLES20;
-import android.opengl.GLES30;
 import android.opengl.GLSurfaceView;
 import android.opengl.GLUtils;
 import android.opengl.Matrix;
-import android.util.AttributeSet;
 import android.util.Log;
-
-import java.io.IOException;
-import java.nio.ByteOrder;
-import java.nio.FloatBuffer;
-import java.nio.IntBuffer;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -27,17 +20,25 @@ public class GLView extends GLSurfaceView implements GLSurfaceView.Renderer {
     public static final String TAG = "GLView";
 
 
-    private final String fileName;
+    private final String objFilePath;
+    private final String textureFilePath;
     private int mNormalHandle;
     private int mTexCoordHandle;
     private ObjParser objParser;
     private int mMVPHandle;
     private float radio;
-    private long start;
+    private long startLoadObjTime;
 
-    public GLView(Context context, String fileName) {
+    /**
+     *
+     * @param context
+     * @param objFilePath obj 文件路径
+     * @param textureFilePath 纹理图片路径
+     */
+    public GLView(Context context, String objFilePath, String textureFilePath) {
         super(context);
-        this.fileName = fileName;
+        this.objFilePath = objFilePath;
+        this.textureFilePath = textureFilePath;
         setEGLContextClientVersion(2);
         setRenderer(this);
         setRenderMode(RENDERMODE_WHEN_DIRTY);
@@ -85,39 +86,44 @@ public class GLView extends GLSurfaceView implements GLSurfaceView.Renderer {
     }
 
     public void onSurfaceCreated(GL10 unused, EGLConfig config) {
-        start = System.currentTimeMillis();
         objParser = new ObjParser();
-        objParser.readObj(fileName);
-        Log.d(TAG, "read time is " + (System.currentTimeMillis() - start) + "ms");
-//        System.out.println("MainActivity.display ac!!" + (System.currentTimeMillis() - start));
-//        FloatBuffer fb = data.points.order(ByteOrder.nativeOrder()).asFloatBuffer();
-//        System.out.println("MainActivity.display ac!!" + fb.capacity());
-//        IntBuffer ib = data.indices.order(ByteOrder.nativeOrder()).asIntBuffer();
-//        System.out.println("MainActivity.display ac!!" + ib.capacity());
-//        System.out.println("GLView.onSurfaceCreated ac!!" + objParser.indices.position()
-//                + " " + objParser.indices.remaining()
-//                + " " + objParser.indices.capacity());
-        int[] buffer = new int[2];
-        GLES20.glGenBuffers(2, buffer, 0);
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, buffer[0]);
-        GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER,
-                objParser.points.capacity(),
-                objParser.points,
-                GLES20.GL_STATIC_DRAW);
-        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, buffer[1]);
-        GLES20.glBufferData(GLES20.GL_ELEMENT_ARRAY_BUFFER,
-                objParser.indices.capacity(),
-                objParser.indices,
-                GLES20.GL_STATIC_DRAW);
 
+        startLoadObjTime = System.currentTimeMillis();
+        objParser.loadObj(objFilePath);
+        Log.d(TAG, "read time is " + (System.currentTimeMillis() - startLoadObjTime) + "ms");
+
+        initShader();
+        checkGLError("init shader");
+        initBuffer();
+        checkGLError("init buffer");
+        initTexture();
+        checkGLError("init texture");
+
+        //enable depth test
+        GLES20.glEnable(GLES20.GL_DEPTH_TEST);
+        GLES20.glDepthFunc(GLES20.GL_LESS);
+
+    }
+
+    public void checkGLError(String op) {
+        int error;
+        while ((error = GLES20.glGetError()) != GLES20.GL_NO_ERROR) {
+            Log.e(TAG, op + ": glError " + error);
+        }
+    }
+
+    private void initTexture() {
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+
+        int texture = loadTexture(getContext(), textureFilePath);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture);
+    }
+
+    private void initShader() {
         int vertexShader = loadShader(GLES20.GL_VERTEX_SHADER,
                 vertexShaderCode);
         int fragmentShader = loadShader(GLES20.GL_FRAGMENT_SHADER,
                 fragmentShaderCode);
-
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-        int texture = loadTexture(getContext(), "texture.jpg");
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture);
 
         // create empty OpenGL ES Program
         mProgram = GLES20.glCreateProgram();
@@ -131,13 +137,46 @@ public class GLView extends GLSurfaceView implements GLSurfaceView.Renderer {
         // creates OpenGL ES program executables
         GLES20.glLinkProgram(mProgram);
 
-        GLES20.glEnable(GLES20.GL_CULL_FACE);
-        GLES20.glEnable(GLES20.GL_DEPTH_TEST);
-        GLES20.glDepthFunc(GLES20.GL_LESS);
+        GLES20.glUseProgram(mProgram);
 
+        // get handle to vertex shader's vPosition member
+        mMVPHandle = GLES20.glGetUniformLocation(mProgram, "mvp");
+        mPositionHandle = GLES20.glGetAttribLocation(mProgram, "vPosition");
+        mTexCoordHandle = GLES20.glGetAttribLocation(mProgram, "vTexCoord");
+        mNormalHandle = GLES20.glGetAttribLocation(mProgram, "vNormal");
     }
 
-    public static int loadTexture(final Context context, final String textureName) {
+    private void initBuffer() {
+        int[] buffer = new int[2];
+        GLES20.glGenBuffers(2, buffer, 0);
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, buffer[0]);
+        GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER,
+                objParser.points.capacity(),
+                objParser.points,
+                GLES20.GL_STATIC_DRAW);
+        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, buffer[1]);
+        GLES20.glBufferData(GLES20.GL_ELEMENT_ARRAY_BUFFER,
+                objParser.indices.capacity(),
+                objParser.indices,
+                GLES20.GL_STATIC_DRAW);
+
+        // Enable a handle to the triangle vertices
+        GLES20.glEnableVertexAttribArray(mPositionHandle);
+        GLES20.glEnableVertexAttribArray(mNormalHandle);
+        GLES20.glEnableVertexAttribArray(mTexCoordHandle);
+        // Prepare the triangle coordinate data
+        GLES20.glVertexAttribPointer(mPositionHandle, 3,
+                GLES20.GL_FLOAT, true,
+                8 * 4, 0);
+        GLES20.glVertexAttribPointer(mTexCoordHandle, 2,
+                GLES20.GL_FLOAT, true,
+                8 * 4, 3 * 4);
+        GLES20.glVertexAttribPointer(mNormalHandle, 3,
+                GLES20.GL_FLOAT, true,
+                8 * 4, 5 * 4);
+    }
+
+    public static int loadTexture(final Context context, final String textureFileName) {
         final int[] textureHandle = new int[1];
 
         GLES20.glGenTextures(1, textureHandle, 0);
@@ -148,11 +187,9 @@ public class GLView extends GLSurfaceView implements GLSurfaceView.Renderer {
 
             // Read in the resource
             Bitmap bitmap;
-            try {
-                bitmap = BitmapFactory.decodeStream(context.getAssets().open(textureName), null, options);
-            } catch (IOException e) {
-                e.printStackTrace();
-                return 0;
+            bitmap = BitmapFactory.decodeFile(textureFileName, options);
+            if (bitmap == null) {
+                throw new RuntimeException(TAG + ": load texture file failed!");
             }
 
             // Bind to the texture in OpenGL
@@ -179,60 +216,36 @@ public class GLView extends GLSurfaceView implements GLSurfaceView.Renderer {
     }
 
     public void onDrawFrame(GL10 unused) {
-
-        GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         GLES20.glClear(GLES20.GL_DEPTH_BUFFER_BIT);
-
-        // Redraw background color
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+
         // Add program to OpenGL ES environment
         GLES20.glUseProgram(mProgram);
 
-        // get handle to vertex shader's vPosition member
-        mPositionHandle = GLES20.glGetAttribLocation(mProgram, "vPosition");
-        mTexCoordHandle = GLES20.glGetAttribLocation(mProgram, "vTexCoord");
-        mNormalHandle = GLES20.glGetAttribLocation(mProgram, "vNormal");
-        mMVPHandle = GLES20.glGetUniformLocation(mProgram, "mvp");
+        updateMVP();
 
+        GLES20.glDrawElements(GLES20.GL_TRIANGLES,
+                objParser.indices.capacity(),
+                GLES20.GL_UNSIGNED_INT, 0);
+
+        //wait gl draw
+        GLES20.glFinish();
+        checkGLError("draw");
+        Log.d(TAG, "total time is " + (System.currentTimeMillis() - startLoadObjTime) + "ms");
+    }
+
+    private void updateMVP() {
         float[] p = new float[16];
         Matrix.frustumM(p, 0, -radio, radio, -1, 1, 1, 1000);
-
         float[] v = new float[16];
         Matrix.setLookAtM(v, 0, 0, 0, 300, 0, 0, 0, 0, 1, 0);
-
         float[] m = new float[16];
         Matrix.setIdentityM(m, 0);
-        //Matrix.rotateM(m, 0, -90, 0, 1, 0);
-
         float[] vm = new float[16];
         Matrix.multiplyMM(vm, 0, v, 0, m, 0);
         float[] pvm = new float[16];
         Matrix.multiplyMM(pvm, 0, p, 0, vm, 0);
         GLES20.glUniformMatrix4fv(mMVPHandle, 1, false, pvm, 0);
-
-        // Enable a handle to the triangle vertices
-        GLES20.glEnableVertexAttribArray(mPositionHandle);
-        GLES20.glEnableVertexAttribArray(mNormalHandle);
-        GLES20.glEnableVertexAttribArray(mTexCoordHandle);
-
-        // Prepare the triangle coordinate data
-        GLES20.glVertexAttribPointer(mPositionHandle, 3,
-                GLES20.GL_FLOAT, true,
-                8 * 4, 0);
-
-        GLES20.glVertexAttribPointer(mTexCoordHandle, 2,
-                GLES20.GL_FLOAT, true,
-                8 * 4, 3 * 4);
-
-        GLES20.glVertexAttribPointer(mNormalHandle, 3,
-                GLES20.GL_FLOAT, true,
-                8 * 4, 5 * 4);
-
-        GLES20.glDrawElements(GLES20.GL_TRIANGLES,
-                objParser.indices.capacity(),
-                GLES20.GL_UNSIGNED_INT, 0);
-        GLES20.glFinish();
-        Log.d(TAG, "total time is " + (System.currentTimeMillis() - start) + "ms");
     }
 
     public void onSurfaceChanged(GL10 unused, int width, int height) {

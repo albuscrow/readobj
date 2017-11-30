@@ -1,7 +1,5 @@
 package com.example.lixue.importobj;
 
-import android.content.res.AssetManager;
-
 import java.nio.ByteBuffer;
 
 /**
@@ -12,5 +10,5 @@ public class ObjParser {
     ByteBuffer indices;
     ByteBuffer points;
 
-    public native void readObj(String fileName);
+    public native void loadObj(String fileName);
 }
