@@ -8,6 +8,7 @@ import android.opengl.GLSurfaceView;
 import android.opengl.GLUtils;
 import android.opengl.Matrix;
 import android.util.Log;
+import android.view.MotionEvent;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -28,11 +29,13 @@ public class GLView extends GLSurfaceView implements GLSurfaceView.Renderer {
     private int mMVPHandle;
     private float radio;
     private long startLoadObjTime;
+    private float[] p;
+    private float[] v;
+    private float[] m;
 
     /**
-     *
      * @param context
-     * @param objFilePath obj 文件路径
+     * @param objFilePath     obj 文件路径
      * @param textureFilePath 纹理图片路径
      */
     public GLView(Context context, String objFilePath, String textureFilePath) {
@@ -99,10 +102,19 @@ public class GLView extends GLSurfaceView implements GLSurfaceView.Renderer {
         initTexture();
         checkGLError("init texture");
 
+
         //enable depth test
         GLES20.glEnable(GLES20.GL_DEPTH_TEST);
         GLES20.glDepthFunc(GLES20.GL_LESS);
+    }
 
+    private void initMVPMatrix() {
+        p = new float[16];
+        Matrix.frustumM(p, 0, -radio, radio, -1, 1, 1, 1000);
+        v = new float[16];
+        Matrix.setLookAtM(v, 0, 0, 0, 300, 0, 0, 0, 0, 1, 0);
+        m = new float[16];
+        Matrix.setIdentityM(m, 0);
     }
 
     public void checkGLError(String op) {
@@ -235,12 +247,6 @@ public class GLView extends GLSurfaceView implements GLSurfaceView.Renderer {
     }
 
     private void updateMVP() {
-        float[] p = new float[16];
-        Matrix.frustumM(p, 0, -radio, radio, -1, 1, 1, 1000);
-        float[] v = new float[16];
-        Matrix.setLookAtM(v, 0, 0, 0, 300, 0, 0, 0, 0, 1, 0);
-        float[] m = new float[16];
-        Matrix.setIdentityM(m, 0);
         float[] vm = new float[16];
         Matrix.multiplyMM(vm, 0, v, 0, m, 0);
         float[] pvm = new float[16];
@@ -251,5 +257,37 @@ public class GLView extends GLSurfaceView implements GLSurfaceView.Renderer {
     public void onSurfaceChanged(GL10 unused, int width, int height) {
         radio = (float) width / height;
         GLES20.glViewport(0, 0, width, height);
+        initMVPMatrix();
     }
+
+
+    private float lastX;
+    private float lastY;
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        super.onTouchEvent(event);
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                lastX = event.getX();
+                lastY = event.getY();
+                break;
+
+            case MotionEvent.ACTION_MOVE:
+                float deltaX = (event.getX() - lastX);
+                float deltaY = (event.getY() - lastY);
+                if (deltaX == 0 && deltaY == 0) {
+                    break;
+                }
+                float[] sTemp = new float[16];
+                Matrix.setRotateM(sTemp, 0, 2f, deltaY, deltaX, 0);
+                Matrix.multiplyMM(m, 0, sTemp, 0, m, 0);
+                lastX = event.getX();
+                lastY = event.getY();
+                requestRender();
+                break;
+        }
+        return true;
+    }
+
 }
