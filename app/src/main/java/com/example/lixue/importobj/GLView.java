@@ -237,7 +237,7 @@ public class GLView extends GLSurfaceView implements GLSurfaceView.Renderer {
         updateMVP();
 
         GLES20.glDrawElements(GLES20.GL_TRIANGLES,
-                objParser.indices.capacity(),
+                objParser.indices.capacity() / 4,
                 GLES20.GL_UNSIGNED_INT, 0);
 
         //wait gl draw
